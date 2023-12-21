@@ -1,4 +1,4 @@
-<h1 align="center">wraith.lua</h1>
+<h1 align="center">wraith-aimline</h1>
 
 <p align="center">
 <img src="https://img.shields.io/badge/made%20for-GTA%20SA--MP-blue" >
