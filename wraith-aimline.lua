@@ -49,9 +49,9 @@ end
 --- start
 local inicfg = require "inicfg"
 local sampev = require "lib.samp.events"
+local aspectRatioKey = sampev.MODULEINFO.version >= 3 and 'aspectRatio' or 'unknown'
 
 local font_flag = require("moonloader").font_flag
-local as_action = require("moonloader").audiostream_state
 local my_font = renderCreateFont("Verdana", 12, font_flag.BOLD + font_flag.SHADOW)
 
 local tempThreads = {}
@@ -66,7 +66,6 @@ local cfg =
                 debugNeedAimLines = true,
                 debugNeedAimLinesFull = true,
                 debugNeedAimLinesLOS = true,
-                debugNeed3dtext = true,
                 debugNeedAimLine = true,
                 debugNeedAimLineFull = true,
                 debugNeedAimLineLOS = true,
@@ -87,8 +86,6 @@ saveCfg()
 local DEBUG_NEED_TO_EMULATE_CAMERA = false
 local DEBUG_NEED_TO_EMULATE_CAMERA_BY_ID = 3
 --
-
-local debug3dText = {}
 
 local playersAimData = {}
 local playerPedAimData = false
@@ -301,7 +298,7 @@ function getCurrentWeaponAngle(aspect, weapon)
     return { 0.0, 0.0 }
 end
 
-function checkWraith()
+function openLink(link)
     local ffi = require "ffi"
     ffi.cdef [[
                 void* __stdcall ShellExecuteA(void* hwnd, const char* op, const char* file, const char* params, const char* dir, int show_cmd);
@@ -310,8 +307,16 @@ function checkWraith()
     local shell32 = ffi.load "Shell32"
     local ole32 = ffi.load "Ole32"
     ole32.CoInitializeEx(nil, 2 + 4) -- COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE
-    sampAddChatMessage("Пытаемся открыть: https://www.blast.hk/threads/198111/", -1)
-    print(shell32.ShellExecuteA(nil, "open", "https://www.blast.hk/threads/198111/", nil, nil, 1))
+    sampAddChatMessage("Пытаемся открыть в браузере, сверните игру: " .. link, -1)
+    print(shell32.ShellExecuteA(nil, "open", link, nil, nil, 1))
+end
+
+function checkWraith()
+    openLink('https://www.blast.hk/threads/198111/')
+end
+
+function checkWraithXiaomi()
+    openLink('https://www.blast.hk/threads/198256/')
 end
 
 function callMenu(id, pos, title)
@@ -372,7 +377,7 @@ function main()
     while true do
         wait(0)
 
-        if cfg.options.debug and (cfg.options.debugNeedAimLines or cfg.options.debugNeed3dtext) then
+        if cfg.options.debug and cfg.options.debugNeedAimLines then
             for nick, data in pairs(playersAimData) do
                 if sampIsPlayerConnected(data.playerId) then
                     local result, ped = sampGetCharHandleBySampPlayerId(data.playerId)
@@ -427,27 +432,11 @@ function main()
                                 end
                             end
                         end
-
-                        if cfg.options.debug and cfg.options.debugNeed3dtext and debug3dText[nick] == nil then
-                            local text =
-                                string.format("%s, %s, hit: %s", os.clock(), data.realAspect, data.realAspectHit)
-                            local sampTextId =
-                                sampCreate3dText(text, 0xFFFFFFFF, 0.0, 0.0, 0.02, 10.0, false, data.playerId, -1)
-                            debug3dText[nick] = sampTextId
-                        end
                     else
                         playersAimData[nick] = nil
-                        if debug3dText[nick] ~= nil then
-                            sampDestroy3dText(debug3dText[nick])
-                            debug3dText[nick] = nil
-                        end
                     end
                 else
                     playersAimData[nick] = nil
-                    if debug3dText[nick] ~= nil then
-                        sampDestroy3dText(debug3dText[nick])
-                        debug3dText[nick] = nil
-                    end
                 end
             end
         end
@@ -531,7 +520,7 @@ function processAimLine(data, aspect)
                 currentWeaponAngle[2]
             ),
             100,
-            400,
+            300,
             0xFFFFFFFF
         )
     end
@@ -565,7 +554,7 @@ end
 
 function sampev.onSendAimSync(data)
     if cfg.options.debug and cfg.options.debugNeedAimLine and data.camMode ~= 4 and data.camMode ~= 18 then
-        local hit, realAspect = getRealAspectRatioByWeirdValue(data.aspectRatio)
+        local hit, realAspect = getRealAspectRatioByWeirdValue(data[aspectRatioKey])
 
         playerPedAimData = {
             camMode = data.camMode,
@@ -578,7 +567,7 @@ function sampev.onSendAimSync(data)
             aimZ = data.aimZ,
             camExtZoom = data.camExtZoom,
             weaponState = data.weaponState,
-            aspectRatio = data.aspectRatio,
+            aspectRatio = data[aspectRatioKey],
             realAspectHit = hit,
             realAspect = realAspect,
             weapon = getCurrentCharWeapon(playerPed)
@@ -591,7 +580,7 @@ function sampev.onAimSync(playerId, data)
         local res, char = sampGetCharHandleBySampPlayerId(playerId)
         if res then
             local nick = sampGetPlayerNickname(playerId)
-            local hit, realAspect = getRealAspectRatioByWeirdValue(data.aspectRatio)
+            local hit, realAspect = getRealAspectRatioByWeirdValue(data[aspectRatioKey])
 
             local playerAimData = {
                 camMode = data.camMode,
@@ -604,14 +593,14 @@ function sampev.onAimSync(playerId, data)
                 aimZ = data.aimZ,
                 camExtZoom = data.camExtZoom,
                 weaponState = data.weaponState,
-                aspectRatio = data.aspectRatio,
+                aspectRatio = data[aspectRatioKey],
                 playerId = playerId,
                 realAspectHit = hit,
                 realAspect = realAspect,
                 weapon = getCurrentCharWeapon(char)
             }
 
-            if cfg.options.debug and (cfg.options.debugNeedAimLines or cfg.options.debugNeed3dtext) then
+            if cfg.options.debug and cfg.options.debugNeedAimLines then
                 playersAimData[nick] = playerAimData
             end
 
@@ -701,13 +690,6 @@ function processDebugOffset(aspect, weapon)
     end
 end
 
--- cleanup
-function onScriptTerminate(LuaScript, quitGame)
-    for k, v in pairs(debug3dText) do
-        sampDestroy3dText(v)
-    end
-end
-
 -- menu
 
 function createSimpleToggle(group, setting, text)
@@ -738,16 +720,16 @@ function updateMenu()
             onclick = checkWraith
         },
         {
+            title = "Открыть скрипт который показывает соотношение сторон",
+            onclick = checkWraithXiaomi
+        },
+        {
             title = " "
         },
         createSimpleToggle("options", "debug", "Скрипт работает: "),
         {
             title = "Настройки",
             submenu = {
-                createSimpleToggle("options", "debugNeed3dtext", "Отображать 3д текст с соотношением сторон: "),
-                {
-                    title = " "
-                },
                 {
                     title = "{AAAAAA}Рендеры всех игроков"
                 },
@@ -771,14 +753,7 @@ function updateMenu()
                 },
                 createSimpleToggle("options", "debugNeedToDrawAngles", "Рендерить текущий угол: "),
                 createSimpleToggle("options", "debugNeedToTweakAngles", "Менять углы (alt+стрелки): "),
-                createSimpleToggle("options", "debugNeedToSaveAngles", "Сохранять измененные углы: "),
-                {
-                    title = " "
-                },
-                {
-                    title = "{AAAAAA}Разное"
-                },
-                createSimpleToggle("options", "welcomeMessage", "Показывать вступительное сообщение: ")
+                createSimpleToggle("options", "debugNeedToSaveAngles", "Сохранять измененные углы: ")
             }
         }
     }
@@ -796,6 +771,7 @@ function submenus_show(menu, caption, select_button, close_button, back_button, 
         for i, v in ipairs(menu) do
             table.insert(string_list, type(v.submenu) == "table" and v.title .. "  >>" or v.title)
         end
+        wait(100)
         if not start then
             sampShowDialog(
                 id,
