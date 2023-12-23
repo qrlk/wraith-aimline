@@ -5,7 +5,7 @@ script_author("qrlk")
 script_description("aimline render cut from https://github.com/qrlk/wraith.lua")
 -- made for https://www.blast.hk/threads/193650/
 script_url("https://github.com/qrlk/wraith-aimline")
-script_version("21.12.2023-dev1")
+script_version("23.12.2023-rc1")
 
 -- https://github.com/qrlk/qrlk.lua.moonloader
 local enable_sentry = true -- false to disable error reports to sentry.io
@@ -63,15 +63,25 @@ local cfg =
             options = {
                 welcomeMessage = true,
                 debug = true,
+
                 debugNeedAimLines = true,
+                debugNeedAimLinesRenderForAll = true,
                 debugNeedAimLinesFull = true,
                 debugNeedAimLinesLOS = true,
+                debugNeedAimLinesClear = true,
+                debugNeedAimLinesOnlyAim = true,
+                debugNeedAimLinesIgnoreCam4 = true,
+
                 debugNeedAimLine = true,
                 debugNeedAimLineFull = true,
                 debugNeedAimLineLOS = true,
+                debugNeedAimLineClear = true,
+                debugNeedAimLineOnlyAim = false,
+                debugNeedAimLineIgnoreCam4 = true,
+
                 debugNeedToDrawAngles = false,
                 debugNeedToTweakAngles = false,
-                debugNeedToSaveAngles = false
+                debugNeedToSaveAngles = false,
             }
         },
         "wraith-aimline"
@@ -89,9 +99,11 @@ local DEBUG_NEED_TO_EMULATE_CAMERA_BY_ID = 3
 
 local playersAimData = {}
 local playerPedAimData = false
+local CHECK_NICK = false
 
 -- trying to ulitize aspectRatio property from aimSync
 
+-- https://github.com/qrlk/wraith-xiaomi
 local aspectRatios = {
     [63] = "5:4",    -- 1,25
     [85] = "4:3",    -- 1,333333333333333
@@ -195,90 +207,94 @@ end
 -- 21. 1680x1050 - Aspect Ratio: 16:10 153
 -- 23. 1920x1200 - Aspect Ratio: 16:10 153
 
+--https://github.com/qrlk/wraith-xiaomi
+
 -- thi debug ini is not saved by default and formally loads for debugging purposes only
 -- if the values change in possible updates, the name of the .ini file will be changed
 
 local angelsIniFileName = "wraith-aimline-debug-21122023"
+local defaultAngles = {
+    ["5:4"] = {
+        curxy = -0.04,
+        curz = 0.105,
+        curARxy = -0.027,
+        curARz = 0.07,
+        curRFxy = -0.019,
+        curRFz = 0.047
+    },
+    ["4:3"] = {
+        curxy = -0.044,
+        curz = 0.109,
+        curARxy = -0.03,
+        curARz = 0.07,
+        curRFxy = -0.019,
+        curRFz = 0.047
+    },
+    ["43:18"] = {
+        curxy = -0.079,
+        curz = 0.104,
+        curARxy = -0.052,
+        curARz = 0.07,
+        curRFxy = -0.034,
+        curRFz = 0.047
+    },
+    ["3:2"] = {
+        curxy = -0.047,
+        curz = 0.105,
+        curARxy = -0.033,
+        curARz = 0.07,
+        curRFxy = -0.022,
+        curRFz = 0.048
+    },
+    ["25:16"] = {
+        curxy = -0.049,
+        curz = 0.105,
+        curARxy = -0.033,
+        curARz = 0.07,
+        curRFxy = -0.023,
+        curRFz = 0.048
+    },
+    ["16:10"] = {
+        curxy = -0.05,
+        curz = 0.105,
+        curARxy = -0.036,
+        curARz = 0.07,
+        curRFxy = -0.024,
+        curRFz = 0.047
+    },
+    ["5:3"] = {
+        curxy = -0.052,
+        curz = 0.105,
+        curARxy = -0.036,
+        curARz = 0.07,
+        curRFxy = -0.024,
+        curRFz = 0.047
+    },
+    ["16:9"] = {
+        curxy = -0.056,
+        curz = 0.104,
+        curARxy = -0.037,
+        curARz = 0.07,
+        curRFxy = -0.026,
+        curRFz = 0.047
+    },
+    -- need to investigate the issue with 16:9 clients without widescreenfix
+    -- It’s not clear how to distinguish people with a 16:9 fix from those who don’t have it
+    -- if widescreen fix is not installed but widescreen mode is enabled in the settings, the values should be like this:
+
+    ["16:9noWSF"] = {
+        curxy = -0.043,
+        curz = 0.079,
+        curARxy = -0.028,
+        curARz = 0.052,
+        curRFxy = -0.019,
+        curRFz = 0.035
+    }
+}
+
 local anglesPerAspectRatio =
     inicfg.load(
-        {
-            ["5:4"] = {
-                curxy = -0.04,
-                curz = 0.105,
-                curARxy = -0.027,
-                curARz = 0.07,
-                curRFxy = -0.019,
-                curRFz = 0.047
-            },
-            ["4:3"] = {
-                curxy = -0.044,
-                curz = 0.109,
-                curARxy = -0.03,
-                curARz = 0.07,
-                curRFxy = -0.019,
-                curRFz = 0.047
-            },
-            ["43:18"] = {
-                curxy = -0.079,
-                curz = 0.104,
-                curARxy = -0.052,
-                curARz = 0.07,
-                curRFxy = -0.034,
-                curRFz = 0.047
-            },
-            ["3:2"] = {
-                curxy = -0.047,
-                curz = 0.105,
-                curARxy = -0.033,
-                curARz = 0.07,
-                curRFxy = -0.022,
-                curRFz = 0.048
-            },
-            ["25:16"] = {
-                curxy = -0.049,
-                curz = 0.105,
-                curARxy = -0.033,
-                curARz = 0.07,
-                curRFxy = -0.023,
-                curRFz = 0.048
-            },
-            ["16:10"] = {
-                curxy = -0.05,
-                curz = 0.105,
-                curARxy = -0.036,
-                curARz = 0.07,
-                curRFxy = -0.024,
-                curRFz = 0.047
-            },
-            ["5:3"] = {
-                curxy = -0.052,
-                curz = 0.105,
-                curARxy = -0.036,
-                curARz = 0.07,
-                curRFxy = -0.024,
-                curRFz = 0.047
-            },
-            ["16:9"] = {
-                curxy = -0.056,
-                curz = 0.104,
-                curARxy = -0.037,
-                curARz = 0.07,
-                curRFxy = -0.026,
-                curRFz = 0.047
-            },
-            -- need to investigate the issue with 16:9 clients without widescreenfix
-            -- It’s not clear how to distinguish people with a 16:9 fix from those who don’t have it
-            -- if widescreen fix is not installed but widescreen mode is enabled in the settings, the values should be like this:
-
-            ["16:9noWSF"] = {
-                curxy = -0.043,
-                curz = 0.079,
-                curARxy = -0.028,
-                curARz = 0.052,
-                curRFxy = -0.019,
-                curRFz = 0.035
-            }
-        },
+        defaultAngles,
         angelsIniFileName
     )
 
@@ -336,6 +352,122 @@ function callMenu(id, pos, title)
     )
 end
 
+function processAimSyncData(data, ped, onlyAim, needFull, needLOS)
+    local aspects = { data.realAspect }
+
+    if data.realAspect == "16:9" then
+        aspects[2] = "16:9noWSF"
+    end
+
+    for k, aspect in pairs(aspects) do
+        -- 4 is default cam mode
+        -- 55 cam is when on passenger seat
+        -- 19 ped aiming on screen
+        -- 27 ped aiming but not on screen
+        if not onlyAim or (data.camMode ~= 4 and (readMemory(getCharPointer(ped) + 0x528, 1, false) == 19 or readMemory(getCharPointer(ped) + 0x528, 1, false) == 27)) or data.camMode == 55 then
+            local p1x, p1y, p1z, p2x, p2y, p2z = processAimLine(data, aspect)
+            if needFull then
+                local aa, rr, gg, bb = explode_argb(sampGetPlayerColor(data.playerId))
+                local color = join_argb(255, rr, gg, bb)
+                drawDebugLine(p1x, p1y, p1z, p2x, p2y, p2z, 0xff00ffff, color, 0xff348cb2)
+            end
+
+            if needLOS then
+                local result, colPoint =
+                    processLineOfSight(
+                        p1x,
+                        p1y,
+                        p1z,
+                        p2x,
+                        p2y,
+                        p2z,
+                        true,
+                        true,
+                        true,
+                        true,
+                        true,
+                        true,
+                        true,
+                        true
+                    )
+                if result then
+                    drawDebugLine(
+                        p1x,
+                        p1y,
+                        p1z,
+                        colPoint.pos[1],
+                        colPoint.pos[2],
+                        colPoint.pos[3],
+                        0xffb50104,
+                        0xffb50104,
+                        0xffb50104
+                    )
+                end
+            end
+        end
+    end
+end
+
+function processSampukAimData(nick, data)
+    if sampIsPlayerConnected(data.playerId) then
+        local result, ped = sampGetCharHandleBySampPlayerId(data.playerId)
+        if result and sampGetPlayerNickname(data.playerId) == nick then
+            if cfg.options.debugNeedAimLines then
+                processAimSyncData(data, ped, cfg.options.debugNeedAimLinesOnlyAim, cfg.options.debugNeedAimLinesFull,
+                    cfg.options.debugNeedAimLinesLOS)
+            end
+        else
+            playersAimData[nick] = nil
+        end
+    else
+        playersAimData[nick] = nil
+    end
+end
+
+function renderDebugText(nick, data)
+    renderFontDrawText(
+        my_font,
+        string.format(
+            "NICK: %s[%s] - /wra [id]\n", nick, data.playerId
+        ),
+        50,
+        500,
+        0xFFFFFFFF
+    )
+
+    local aspects = { data.realAspect }
+
+    if data.realAspect == "16:9" then
+        aspects[2] = "16:9noWSF"
+    end
+
+    for k, aspect in pairs(aspects) do
+        local currentWeaponAngle = getCurrentWeaponAngle(aspect, data.weapon)
+
+        if cfg.options.debugNeedToDrawAngles then
+            renderFontDrawText(
+                my_font,
+                string.format(
+                    "a: %s (r: %s h:%s) || cM: %s || wS: %s || cEZ: %s\nw: %s || curxy: %s || curz: %s\nage: %.2fс",
+                    aspect,
+                    data.aspectRatio,
+                    data.realAspectHit,
+                    data.camMode,
+                    data.weaponState,
+                    data.camExtZoom,
+                    data.weapon,
+                    currentWeaponAngle[1],
+                    currentWeaponAngle[2],
+                    os.clock() - data.time
+                ),
+                50,
+                530,
+                0xFFFFFFFF
+            )
+        end
+    end
+end
+
 function main()
     if not isSampfuncsLoaded() or not isSampLoaded() then
         return
@@ -374,124 +506,102 @@ function main()
     end
     sampRegisterChatCommand("checkwraith", checkWraith)
 
+
+    function selectPlayerForRender(id)
+        if id == "" then
+            CHECK_NICK = false
+            sampAddChatMessage('/wraith-aimline || CHECK_NICK: none ', -1)
+        else
+            if sampIsPlayerConnected(id) then
+                CHECK_NICK = sampGetPlayerNickname(id)
+                sampAddChatMessage('/wraith-aimline || CHECK_NICK: ' .. CHECK_NICK, -1)
+            end
+        end
+    end
+
+    sampRegisterChatCommand("wra", selectPlayerForRender)
+
+    -- local p = getAllChars()
+    -- local rr, id = sampGetPlayerIdByCharHandle(p[math.random(#p)])
+    -- if rr and sampIsPlayerConnected(id) then
+    --     CHECK_NICK = sampGetPlayerNickname(id)
+    --     print('random: ', CHECK_NICK)
+    -- end
+
     while true do
         wait(0)
 
+        --global onAimSync
         if cfg.options.debug and cfg.options.debugNeedAimLines then
-            for nick, data in pairs(playersAimData) do
-                if sampIsPlayerConnected(data.playerId) then
-                    local result, ped = sampGetCharHandleBySampPlayerId(data.playerId)
-                    if result and sampGetPlayerNickname(data.playerId) == nick then
-                        if cfg.options.debugNeedAimLines and data.camMode ~= 4 then
-                            local aspects = { data.realAspect }
+            if CHECK_NICK and cfg.options.debugNeedToDrawAngles then
+                if playersAimData[CHECK_NICK] ~= nil then
+                    renderDebugText(CHECK_NICK, playersAimData[CHECK_NICK])
 
-                            if data.realAspect == "16:9" then
-                                aspects[2] = "16:9noWSF"
-                            end
-
-                            for k, aspect in pairs(aspects) do
-                                local p1x, p1y, p1z, p2x, p2y, p2z = processAimLine(data, aspect)
-
-                                if (data.camMode ~= 4 and (readMemory(getCharPointer(ped) + 0x528, 1, false) == 19 or readMemory(getCharPointer(ped) + 0x528, 1, false) == 27)) or data.camMode == 55 then
-                                    if cfg.options.debugNeedAimLinesFull then
-                                        drawDebugLine(p1x, p1y, p1z, p2x, p2y, p2z, 0xff00ffff, 0xffffffff, 0xff348cb2)
-                                    end
-
-                                    if cfg.options.debugNeedAimLinesLOS then
-                                        local result, colPoint =
-                                            processLineOfSight(
-                                                p1x,
-                                                p1y,
-                                                p1z,
-                                                p2x,
-                                                p2y,
-                                                p2z,
-                                                true,
-                                                true,
-                                                true,
-                                                true,
-                                                true,
-                                                true,
-                                                true,
-                                                true
-                                            )
-                                        if result then
-                                            drawDebugLine(
-                                                p1x,
-                                                p1y,
-                                                p1z,
-                                                colPoint.pos[1],
-                                                colPoint.pos[2],
-                                                colPoint.pos[3],
-                                                0xff004cff,
-                                                0xff004cff,
-                                                0xff004cff
-                                            )
-                                        end
-                                    end
-                                end
-                            end
-                        end
+                    if sampIsPlayerConnected(playersAimData[CHECK_NICK].playerId) and sampGetPlayerNickname(playersAimData[CHECK_NICK].playerId) == CHECK_NICK then
+                        processSampukAimData(CHECK_NICK, playersAimData[CHECK_NICK])
                     else
-                        playersAimData[nick] = nil
+                        CHECK_NICK = false
+                        sampAddChatMessage('/wraith-aimline || CHECK_NICK: none ', -1)
                     end
                 else
-                    playersAimData[nick] = nil
+                    renderFontDrawText(
+                        my_font,
+                        string.format(
+                            "NICK: %s || STATUS: NO_DATA || /wra [id]", CHECK_NICK
+                        ),
+                        50,
+                        500,
+                        0xFFFFFFFF
+                    )
+                end
+            elseif cfg.options.debugNeedAimLinesRenderForAll then
+                for nick, data in pairs(playersAimData) do
+                    if cfg.options.debugNeedAimLinesClear and os.clock() - 3 > data.time then
+                        playersAimData[nick] = nil
+                    end
+                    processSampukAimData(nick, data)
                 end
             end
         end
 
-        if cfg.options.debug and cfg.options.debugNeedAimLine and playerPedAimData then
-            if cfg.options.debug and cfg.options.debugNeedToTweakAngles then
-                processDebugOffset(playerPedAimData.realAspect, playerPedAimData.weapon)
+        --local onSendAimSync
+
+        if playerPedAimData and isCharDead(playerPed) then
+            playerPedAimData = false
+        end
+
+        if cfg.options.debugNeedAimLineClear and playerPedAimData then
+            if os.clock() - 3 > playerPedAimData.time then
+                playerPedAimData = false
             end
+        end
 
-            if cfg.options.debugNeedAimLine then
-                local aspects = { playerPedAimData.realAspect }
-
-                if playerPedAimData.realAspect == "16:9" then
-                    aspects[2] = "16:9noWSF"
+        if cfg.options.debug and cfg.options.debugNeedAimLine then
+            if playerPedAimData then
+                if cfg.options.debugNeedToDrawAngles and not CHECK_NICK then
+                    renderDebugText('ME', playerPedAimData)
                 end
 
-                for k, aspect in pairs(aspects) do
-                    local p1x, p1y, p1z, p2x, p2y, p2z = processAimLine(playerPedAimData, aspect)
+                if cfg.options.debugNeedToTweakAngles then
+                    processDebugOffset(playerPedAimData.realAspect, playerPedAimData.weapon)
+                end
 
-                    if cfg.options.debugNeedAimLineFull then
-                        drawDebugLine(p1x, p1y, p1z, p2x, p2y, p2z, 0xff00ffff, 0xffffffff, 0xff348cb2)
-                    end
-
-                    if cfg.options.debugNeedAimLineLOS then
-                        local result, colPoint =
-                            processLineOfSight(
-                                p1x,
-                                p1y,
-                                p1z,
-                                p2x,
-                                p2y,
-                                p2z,
-                                true,
-                                true,
-                                true,
-                                true,
-                                true,
-                                true,
-                                true,
-                                true
-                            )
-                        if result then
-                            drawDebugLine(
-                                p1x,
-                                p1y,
-                                p1z,
-                                colPoint.pos[1],
-                                colPoint.pos[2],
-                                colPoint.pos[3],
-                                0xff004cff,
-                                0xff004cff,
-                                0xff004cff
-                            )
-                        end
-                    end
+                if cfg.options.debugNeedAimLine then
+                    processAimSyncData(playerPedAimData, playerPed, cfg.options.debugNeedAimLineOnlyAim,
+                        cfg.options.debugNeedAimLineFull,
+                        cfg.options.debugNeedAimLineLOS)
+                end
+            else
+                if cfg.options.debugNeedToDrawAngles and not CHECK_NICK then
+                    renderFontDrawText(
+                        my_font,
+                        string.format(
+                            "NICK: %s || STATUS: NO_DATA || /wra [id]", 'ME'
+                        ),
+                        50,
+                        500,
+                        0xFFFFFFFF
+                    )
                 end
             end
         end
@@ -508,22 +618,6 @@ end
 function processAimLine(data, aspect)
     -- data.weapon
     local currentWeaponAngle = getCurrentWeaponAngle(aspect, data.weapon)
-
-    if cfg.options.debug and cfg.options.debugNeedToDrawAngles then
-        renderFontDrawText(
-            my_font,
-            string.format(
-                "a: %s || w: %s || curxy: %s || curz: %s",
-                aspect,
-                data.weapon,
-                currentWeaponAngle[1],
-                currentWeaponAngle[2]
-            ),
-            100,
-            300,
-            0xFFFFFFFF
-        )
-    end
 
     local frontAngleXY = math.atan2(-data.camFrontY, -data.camFrontX)
     local frontAngleZ = 1.5708 - math.acos(data.camFrontZ)
@@ -553,70 +647,88 @@ end
 -- sampev
 
 function sampev.onSendAimSync(data)
-    if cfg.options.debug and cfg.options.debugNeedAimLine and data.camMode ~= 4 and data.camMode ~= 18 then
-        local hit, realAspect = getRealAspectRatioByWeirdValue(data[aspectRatioKey])
-
-        playerPedAimData = {
-            camMode = data.camMode,
-            camFrontX = data.camFront.x,
-            camFrontY = data.camFront.y,
-            camFrontZ = data.camFront.z,
-            camPosX = data.camPos.x,
-            camPosY = data.camPos.y,
-            camPosZ = data.camPos.z,
-            aimZ = data.aimZ,
-            camExtZoom = data.camExtZoom,
-            weaponState = data.weaponState,
-            aspectRatio = data[aspectRatioKey],
-            realAspectHit = hit,
-            realAspect = realAspect,
-            weapon = getCurrentCharWeapon(playerPed)
-        }
+    if cfg.options.debug and cfg.options.debugNeedAimLine then
+        if not cfg.options.debugNeedAimLineIgnoreCam4 or (cfg.options.debugNeedAimLineIgnoreCam4 and data.camMode ~= 4 and data.camMode ~= 18 and data.camMode ~= 15) then
+            local hit, realAspect = getRealAspectRatioByWeirdValue(data[aspectRatioKey])
+            local _, localId = sampGetPlayerIdByCharHandle(playerPed)
+            if _ and localId then
+                playerPedAimData = {
+                    camMode = data.camMode,
+                    camFrontX = data.camFront.x,
+                    camFrontY = data.camFront.y,
+                    camFrontZ = data.camFront.z,
+                    camPosX = data.camPos.x,
+                    camPosY = data.camPos.y,
+                    camPosZ = data.camPos.z,
+                    aimZ = data.aimZ,
+                    camExtZoom = data.camExtZoom,
+                    weaponState = data.weaponState,
+                    aspectRatio = data[aspectRatioKey],
+                    realAspectHit = hit,
+                    realAspect = realAspect,
+                    weapon = getCurrentCharWeapon(playerPed),
+                    playerId = localId,
+                    time = os.clock()
+                }
+            end
+        end
     end
 end
 
 function sampev.onAimSync(playerId, data)
-    if sampIsPlayerConnected(playerId) then
-        local res, char = sampGetCharHandleBySampPlayerId(playerId)
-        if res then
-            local nick = sampGetPlayerNickname(playerId)
-            local hit, realAspect = getRealAspectRatioByWeirdValue(data[aspectRatioKey])
+    if cfg.options.debug then
+        if sampIsPlayerConnected(playerId) then
+            local res, char = sampGetCharHandleBySampPlayerId(playerId)
+            if res then
+                local nick = sampGetPlayerNickname(playerId)
+                local hit, realAspect = getRealAspectRatioByWeirdValue(data[aspectRatioKey])
 
-            local playerAimData = {
-                camMode = data.camMode,
-                camFrontX = data.camFront.x,
-                camFrontY = data.camFront.y,
-                camFrontZ = data.camFront.z,
-                camPosX = data.camPos.x,
-                camPosY = data.camPos.y,
-                camPosZ = data.camPos.z,
-                aimZ = data.aimZ,
-                camExtZoom = data.camExtZoom,
-                weaponState = data.weaponState,
-                aspectRatio = data[aspectRatioKey],
-                playerId = playerId,
-                realAspectHit = hit,
-                realAspect = realAspect,
-                weapon = getCurrentCharWeapon(char)
-            }
+                if not cfg.options.debugNeedAimLinesIgnoreCam4 or (cfg.options.debugNeedAimLinesIgnoreCam4 and data.camMode ~= 4) then
+                    local playerAimData = {
+                        camMode = data.camMode,
+                        camFrontX = data.camFront.x,
+                        camFrontY = data.camFront.y,
+                        camFrontZ = data.camFront.z,
+                        camPosX = data.camPos.x,
+                        camPosY = data.camPos.y,
+                        camPosZ = data.camPos.z,
+                        aimZ = data.aimZ,
+                        camExtZoom = data.camExtZoom,
+                        weaponState = data.weaponState,
+                        aspectRatio = data[aspectRatioKey],
+                        playerId = playerId,
+                        realAspectHit = hit,
+                        realAspect = realAspect,
+                        weapon = getCurrentCharWeapon(char),
+                        time = os.clock()
+                    }
 
-            if cfg.options.debug and cfg.options.debugNeedAimLines then
-                playersAimData[nick] = playerAimData
-            end
+                    if cfg.options.debug and cfg.options.debugNeedAimLines then
+                        playersAimData[nick] = playerAimData
+                    end
 
-            if cfg.options.debug and DEBUG_NEED_TO_EMULATE_CAMERA then
-                local _, lId = sampGetPlayerIdByCharHandle(playerPed)
-                if _ and lId == DEBUG_NEED_TO_EMULATE_CAMERA_BY_ID then
-                    local p1x, p1y, p1z = data.camPos.x, data.camPos.y, data.camPos.z
-                    local p2x, p2y, p2z =
-                        data.camPos.x + data.camFront.x * 5,
-                        data.camPos.y + data.camFront.y * 5,
-                        data.camPos.z + data.camFront.z * 5
-                    camPos(p1x, p1y, p1z, 0.0, 0.0, 0.0)
-                    ponCameraPoint(p2x, p2y, p2z, 2)
+                    if cfg.options.debug and DEBUG_NEED_TO_EMULATE_CAMERA then
+                        local _, lId = sampGetPlayerIdByCharHandle(playerPed)
+                        if _ and lId == DEBUG_NEED_TO_EMULATE_CAMERA_BY_ID then
+                            local p1x, p1y, p1z = data.camPos.x, data.camPos.y, data.camPos.z
+                            local p2x, p2y, p2z =
+                                data.camPos.x + data.camFront.x * 5,
+                                data.camPos.y + data.camFront.y * 5,
+                                data.camPos.z + data.camFront.z * 5
+                            camPos(p1x, p1y, p1z, 0.0, 0.0, 0.0)
+                            ponCameraPoint(p2x, p2y, p2z, 2)
+                        end
+                    end
                 end
             end
         end
+    end
+end
+
+function sampev.onPlayerQuit(id)
+    if CHECK_NICK and CHECK_NICK == sampGetPlayerNickname(id) then
+        CHECK_NICK = false
+        sampAddChatMessage('/wraith-aimline || CHECK_NICK: none ', -1)
     end
 end
 
@@ -669,7 +781,7 @@ function processDebugOffset(aspect, weapon)
             if isKeyDown(0x25) then
                 -- left
                 print(string.format("left"), 1, 1)
-                anglesPerAspectRatio[aspect][property1] = anglesPerAspectRatio[aspect][property1] - 0.001
+                anglesPerAspectRatio[aspect][property1] = anglesPerAspectRatio[aspect][property1] + 0.001
             elseif isKeyDown(0x26) then
                 -- up
                 print(string.format("up"), 1, 1)
@@ -677,7 +789,7 @@ function processDebugOffset(aspect, weapon)
             elseif isKeyDown(0x27) then
                 -- right
                 print(string.format("right"), 1, 1)
-                anglesPerAspectRatio[aspect][property1] = anglesPerAspectRatio[aspect][property1] + 0.001
+                anglesPerAspectRatio[aspect][property1] = anglesPerAspectRatio[aspect][property1] - 0.001
             elseif isKeyDown(0x28) then
                 -- down
                 print(string.format("down"), 1, 1)
@@ -698,6 +810,7 @@ function createSimpleToggle(group, setting, text)
         onclick = function()
             cfg[group][setting] = not cfg[group][setting]
             saveCfg()
+            saveDebugIniIfNeeded()
         end
     }
 end
@@ -710,17 +823,38 @@ function updateMenu()
                 sampShowDialog(
                     0,
                     "{7ef3fa}/wraith-aimline v." .. thisScript().version,
-                    "{ffffff}Рендер приблизительной линии прицела игроков.\n\n1. Перехватывает синхронизацию камеры.\n2. Пытается воспроизвести линию прицела.\n3. Работает на основе значения aspectRatio в aimSync.\n4. Для снайперской винтовки, рифлы, м4 и ак47 отдельные углы.",
+                    "{ffffff}Рендер приблизительной линии прицела игроков.\nОснован на aspectRatio в aimSync и ручном подборе всех вариантов.\nРаботает близко к идеалу, но по своей сути просто отладка для wraith.lua (/checkwraith).\n\n1. Перехватывает синхронизацию камеры.\n2. Пытается определить соотношение сторон (см. скрипт wraith-xiaomi).\n3. Отклоняет вектор камеры исходя из собранных вручную данных.\n4. Уже собранные данные учитывают все популярные соотношения.\n5. Группы оружия: м4/ак47 || rifle || пистолеты дробовики смг || остальное.\n\nАлгоритм уже используется в wraith.lua и может пригодится для других проектов.\n\nЛокальный рендер используется для дебага, он основан на onSendAimSync.\n\n/wra - выбрать игрока для трасеров, настроек очень много, см меню.\n\nP.S. Для конфигурации значений лучше использовать трасера пуль и носпред.\nТак же лучше иметь скрипт-companion wraith-xiaomi.",
                     "Окей"
                 )
             end
         },
         {
-            title = "Открыть скрипт, из которого был вырезан рендер",
+            title = "Показать текущие углы",
+            onclick = function()
+                local string = ''
+                
+                for k, v in pairs(anglesPerAspectRatio) do
+                    for kk, vv in pairs(v) do
+                        string = string..string.format('[%s] [%s] %s\n',k, kk, vv)
+                    end
+                end
+                sampShowDialog(
+                    0,
+                    "{7ef3fa}/wraith-aimline v." .. thisScript().version,
+                    string,
+                    "Окей"
+                )
+            end
+        },
+        {
+            title = " "
+        },
+        {
+            title = "Открыть тему с wraith.lua",
             onclick = checkWraith
         },
         {
-            title = "Открыть скрипт который показывает соотношение сторон",
+            title = "Открыть тему с wraith-xiaomi",
             onclick = checkWraithXiaomi
         },
         {
@@ -730,30 +864,62 @@ function updateMenu()
         {
             title = "Настройки",
             submenu = {
-                {
-                    title = "{AAAAAA}Рендеры всех игроков"
-                },
-                createSimpleToggle("options", "debugNeedAimLines", "Общий тогл: "),
-                createSimpleToggle("options", "debugNeedAimLinesFull", "Показывать полную линию: "),
-                createSimpleToggle("options", "debugNeedAimLinesLOS", "Показывать до столкновения: "),
+                createSimpleToggle("options", "debugNeedToDrawAngles", "Рендерить дебаг данные [свои или /wra id]: "),
                 {
                     title = " "
                 },
                 {
-                    title = "{AAAAAA}Рендер линии вашего персонажа"
+                    title = "{AAAAAA}Рендеры всех игроков (onAimSync)"
+                },
+                createSimpleToggle("options", "debugNeedAimLines", "Общий тогл: "),
+                createSimpleToggle("options", "debugNeedAimLinesRenderForAll",
+                    "Рендерить для всех, когда не выбран /wrr [id]: "),
+                createSimpleToggle("options", "debugNeedAimLinesFull", "Показывать полную линию: "),
+                createSimpleToggle("options", "debugNeedAimLinesLOS", "Показывать до столкновения: "),
+                createSimpleToggle("options", "debugNeedAimLinesClear", "Очищать данные устаревшие на 3с: "),
+                createSimpleToggle("options", "debugNeedAimLinesOnlyAim", "Рендерить только во время прицела: "),
+                createSimpleToggle("options", "debugNeedAimLinesIgnoreCam4", "Игнорить обычную камеру при записи: "),
+                {
+                    title = " "
+                },
+                {
+                    title = "{AAAAAA}Рендер линии вашего персонажа (onSendAimSync)"
                 },
                 createSimpleToggle("options", "debugNeedAimLine", "Общий тогл: "),
                 createSimpleToggle("options", "debugNeedAimLineFull", "Показывать полную линию: "),
                 createSimpleToggle("options", "debugNeedAimLineLOS", "Показывать до столкновения: "),
+                createSimpleToggle("options", "debugNeedAimLineClear", "Очищать данные устаревшие на через 3с: "),
+                createSimpleToggle("options", "debugNeedAimLineOnlyAim", "Рендерить только во время прицела: "),
+                createSimpleToggle("options", "debugNeedAimLineIgnoreCam4", "Игнорить обычную камеру при записи: "),
                 {
                     title = " "
                 },
                 {
-                    title = "{AAAAAA}Дебаг дебага (не трогать)"
+                    title = "{AAAAAA}Отладка углов"
                 },
-                createSimpleToggle("options", "debugNeedToDrawAngles", "Рендерить текущий угол: "),
                 createSimpleToggle("options", "debugNeedToTweakAngles", "Менять углы (alt+стрелки): "),
-                createSimpleToggle("options", "debugNeedToSaveAngles", "Сохранять измененные углы: ")
+                {
+                    title = "{FFFF00}Сбросить углы до дефолта",
+                    onclick = function()
+                        anglesPerAspectRatio = copyTable(defaultAngles)
+                        saveDebugIniIfNeeded()
+                    end
+                },
+                {
+                    title = "{FFFF00}Сбросить углы в ноль",
+                    onclick = function()
+                        local wipedAnglesPerAspectRatio = {}
+                        for k, v in pairs(anglesPerAspectRatio) do
+                            wipedAnglesPerAspectRatio[k] = {}
+                            for kk, vv in pairs(v) do
+                                wipedAnglesPerAspectRatio[k][kk] = 0.0
+                            end
+                        end
+                        anglesPerAspectRatio = wipedAnglesPerAspectRatio
+                        saveDebugIniIfNeeded()
+                    end
+                },
+                createSimpleToggle("options", "debugNeedToSaveAngles", "{ff0000}Сохранять измененные углы: "),
             }
         }
     }
@@ -848,4 +1014,32 @@ function submenus_show(menu, caption, select_button, close_button, back_button, 
     end
 
     return display(menu, 31337, caption or menu.title, start, pos)
+end
+
+function explode_argb(argb)
+    local a = bit.band(bit.rshift(argb, 24), 0xFF)
+    local r = bit.band(bit.rshift(argb, 16), 0xFF)
+    local g = bit.band(bit.rshift(argb, 8), 0xFF)
+    local b = bit.band(argb, 0xFF)
+    return a, r, g, b
+end
+
+function join_argb(a, r, g, b)              -- by FYP
+    local argb = b                          -- b
+    argb = bit.bor(argb, bit.lshift(g, 8))  -- g
+    argb = bit.bor(argb, bit.lshift(r, 16)) -- r
+    argb = bit.bor(argb, bit.lshift(a, 24)) -- a
+    return argb
+end
+
+function copyTable(datatable)
+    local tblRes = {}
+    if type(datatable) == "table" then
+        for k, v in pairs(datatable) do
+            tblRes[copyTable(k)] = copyTable(v)
+        end
+    else
+        tblRes = datatable
+    end
+    return tblRes
 end
