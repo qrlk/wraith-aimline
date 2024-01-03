@@ -82,6 +82,8 @@ local cfg =
                 debugNeedToDrawAngles = false,
                 debugNeedToTweakAngles = false,
                 debugNeedToSaveAngles = false,
+
+                debugSmartTracer = false
             }
         },
         "wraith-aimline"
@@ -754,10 +756,34 @@ end
 function drawDebugLine(ax, ay, az, bx, by, bz, color1, color2, color3)
     local _1, x1, y1, z1 = convert3DCoordsToScreenEx(ax, ay, az)
     local _2, x2, y2, z2 = convert3DCoordsToScreenEx(bx, by, bz)
-    if _1 and _2 and z1 > 0 and z2 > 0 then
-        renderDrawPolygon(x1, y1, 10, 10, 10, 0.0, color1)
-        renderDrawLine(x1, y1, x2, y2, 2, color2)
-        renderDrawPolygon(x2, y2, 10, 10, 10, 0.0, color3)
+    if _1 and _2 then
+        if z1 > 0 and z2 > 0 then
+            renderDrawPolygon(x1, y1, 10, 10, 10, 0.0, color1)
+            renderDrawLine(x1, y1, x2, y2, 2, color2)
+            renderDrawPolygon(x2, y2, 10, 10, 10, 0.0, color3)
+        elseif cfg.options.debugSmartTracer then
+            local line = Line.new({ ax, ay, az }, { bx, by, bz })
+            local firstPointOnScreen, lastPointOnScreen = line:getEdgesOnScreen(0.1)
+            if firstPointOnScreen and lastPointOnScreen then
+                local _3, x3, y3, z3 = convert3DCoordsToScreenEx(firstPointOnScreen[1], firstPointOnScreen[2],
+                    firstPointOnScreen[3])
+                local _4, x4, y4, z4 = convert3DCoordsToScreenEx(lastPointOnScreen[1], lastPointOnScreen[2],
+                    lastPointOnScreen[3])
+                if _3 and _4 then
+                    if z3 > 0 and z4 > 0 then
+                        if z1 > 0 then
+                            renderDrawPolygon(x1, y1, 10, 10, 10, 0.0, color1)
+                        end
+
+                        renderDrawLine(x3, y3, x4, y4, 2, color2)
+
+                        if z2 > 0 then
+                            renderDrawPolygon(x2, y2, 10, 10, 10, 0.0, color1)
+                        end
+                    end
+                end
+            end
+        end
     end
 end
 
@@ -832,10 +858,10 @@ function updateMenu()
             title = "Показать текущие углы",
             onclick = function()
                 local string = ''
-                
+
                 for k, v in pairs(anglesPerAspectRatio) do
                     for kk, vv in pairs(v) do
-                        string = string..string.format('[%s] [%s] %s\n',k, kk, vv)
+                        string = string .. string.format('[%s] [%s] %s\n', k, kk, vv)
                     end
                 end
                 sampShowDialog(
@@ -895,6 +921,13 @@ function updateMenu()
                     title = " "
                 },
                 {
+                    title = "{AAAAAA}Настройки трасера"
+                },
+                createSimpleToggle("options", "debugSmartTracer", "Просчитывать трасер за экраном: "),
+                {
+                    title = " "
+                },
+                {
                     title = "{AAAAAA}Отладка углов"
                 },
                 createSimpleToggle("options", "debugNeedToTweakAngles", "Менять углы (alt+стрелки): "),
@@ -923,6 +956,60 @@ function updateMenu()
             }
         }
     }
+end
+
+Line = {}
+Line.__index = Line
+
+function Line.new(p1, p2)
+    local self = setmetatable({}, Line)
+    self.p1 = p1
+    self.p2 = p2
+    self.dx = p2[1] - p1[1]
+    self.dy = p2[2] - p1[2]
+    self.dz = p2[3] - p1[3]
+    self.magnitude = math.sqrt(self.dx * self.dx + self.dy * self.dy + self.dz * self.dz)
+    self.nx = self.dx / self.magnitude
+    self.ny = self.dy / self.magnitude
+    self.nz = self.dz / self.magnitude
+    return self
+end
+
+function Line:getPointAtDistance(distance)
+    local dx = self.nx * distance
+    local dy = self.ny * distance
+    local dz = self.nz * distance
+    return { self.p1[1] + dx, self.p1[2] + dy, self.p1[3] + dz }
+end
+
+function Line:getEdgesOnScreen(coof)
+    -- Calculate the number of points to check
+
+    local numPoints = math.ceil(self.magnitude / coof)
+    local firstPoint = false
+    local lastPoint = false
+    -- Iterate over the points
+    for i = 0, numPoints do
+        -- Get the point at the current distance along the line
+        local d = i * coof
+        if d < self.magnitude then
+            local point = self:getPointAtDistance(d)
+            if isPointOnScreen(point[1], point[2], point[3], 0.1) then
+                if not firstPoint then
+                    firstPoint = point
+                else
+                    lastPoint = point
+                end
+            end
+        end
+    end
+
+    if firstPoint and lastPoint then
+        return firstPoint, lastPoint
+    end
+
+    -- No point was found inside the cube
+    return false
 end
 
 --------------------------------------------------------------------------------
