@@ -902,6 +902,13 @@ function updateMenu()
                     title = " "
                 },
                 {
+                    title = "{AAAAAA}Настройки трасера"
+                },
+                createSimpleToggle("options", "debugSmartTracer", "Просчитывать трасер за экраном"),
+                {
+                    title = " "
+                },
+                {
                     title = "{AAAAAA}Рендеры всех игроков (onAimSync)"
                 },
                 createSimpleToggle("options", "debugNeedAimLines", "Общий тогл"),
@@ -924,13 +931,6 @@ function updateMenu()
                 createSimpleToggle("options", "debugNeedAimLineClear", "Очищать данные устаревшие на через 3с"),
                 createSimpleToggle("options", "debugNeedAimLineOnlyAim", "Рендерить только во время прицела"),
                 createSimpleToggle("options", "debugNeedAimLineIgnoreCam4", "Игнорить обычную камеру при записи"),
-                {
-                    title = " "
-                },
-                {
-                    title = "{AAAAAA}Настройки трасера"
-                },
-                createSimpleToggle("options", "debugSmartTracer", "Просчитывать трасер за экраном"),
                 {
                     title = " "
                 },
