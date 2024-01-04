@@ -943,6 +943,7 @@ function updateMenu()
                     onclick = function()
                         anglesPerAspectRatio = copyTable(defaultAngles)
                         saveDebugIniIfNeeded()
+                        return true
                     end
                 },
                 {
@@ -957,6 +958,7 @@ function updateMenu()
                         end
                         anglesPerAspectRatio = wipedAnglesPerAspectRatio
                         saveDebugIniIfNeeded()
+                        return true
                     end
                 },
                 createSimpleToggle("options", "debugNeedToSaveAngles", "{ff0000}Сохранять измененные углы"),
