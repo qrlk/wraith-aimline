@@ -5,7 +5,7 @@ script_author("qrlk")
 script_description("aimline render cut from https://github.com/qrlk/wraith.lua")
 -- made for https://www.blast.hk/threads/193650/
 script_url("https://github.com/qrlk/wraith-aimline")
-script_version("23.12.2023-rc1")
+script_version("05.01.2024-rc2")
 
 -- https://github.com/qrlk/qrlk.lua.moonloader
 local enable_sentry = true -- false to disable error reports to sentry.io
